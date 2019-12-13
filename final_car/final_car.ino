@@ -1,9 +1,10 @@
+#include <VirtualWire.h>
+
 // front l9110s
 #define F_BIA 9 // pwm
 #define F_BIB 8
 #define F_AIA 6 // pwm
 #define F_AIB 7 
-
 // back l9110s
 #define B_AIA 3 // pwm
 #define B_AIB 2
@@ -19,6 +20,8 @@
 #define BR_PWM B_BIA
 #define BR_DIR B_BIB
 
+#define RX_PIN 11
+
 void setup() {
   Serial.begin(115200); // open the serial port at 115200 bps:
   pinMode(FL_PWM, OUTPUT);
@@ -29,8 +32,11 @@ void setup() {
   pinMode(BL_DIR, OUTPUT);
   pinMode(BR_PWM, OUTPUT);
   pinMode(BR_DIR, OUTPUT);
-//  while (!Serial)
-//    delay(10); // will pause Zero, Leonardo, etc until serial console opens
+
+  // configure rf receiver
+  vw_set_rx_pin(3); // pin
+  vw_setup(2000); // bps
+  vw_rx_start();
 }
 
 //void forward(int speed, int duration) {
@@ -105,14 +111,30 @@ void set_motors(int speed_fl, int speed_fr, int speed_bl, int speed_br) {
   analogWrite(BR_PWM, speed_br <= 0 ? 255 - abs(speed_br) : speed_br);
 }
 
-void loop() {
-//  forward(255, 2000);
-//  sideways(255, 2000);
-//  forward(-255, 2000);
-//  sideways(-255, 2000);  
+void get_imu_data() {
+  uint8_t buf[VW_MAX_MESSAGE_LEN];
+  uint8_t buflen = VW_MAX_MESSAGE_LEN;
 
-  set_motors(-255, 0, 0, 0);
-  delay(1500);
+  if (vw_get_message(buf, &buflen)) { // Non-blocking
+    int i;
+    digitalWrite(13, true); // Flash a light to show received good message
+    // Message with a good checksum received, dump it.
+    Serial.print("Got: ");
+    
+    for (i = 0; i < buflen; i++) {
+      Serial.print(buf[i], HEX);
+      Serial.print(" ");
+    }
+    Serial.println("");
+    digitalWrite(13, false);
+  }
+}
+
+void loop() {
+  get_imu_data();
+
+//  set_motors(-255, 0, 0, 0);
+//  delay(1500);
 
 //  move_vec(0, 5, 255);  
 //  delay(1500);
