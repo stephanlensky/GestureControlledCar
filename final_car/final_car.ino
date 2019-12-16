@@ -34,7 +34,7 @@ void setup() {
   pinMode(BR_DIR, OUTPUT);
 
   // configure rf receiver
-  vw_set_rx_pin(3); // pin
+  vw_set_rx_pin(RX_PIN); // pin
   vw_setup(2000); // bps
   vw_rx_start();
 }
@@ -120,11 +120,14 @@ void get_imu_data() {
     digitalWrite(13, true); // Flash a light to show received good message
     // Message with a good checksum received, dump it.
     Serial.print("Got: ");
-    
-    for (i = 0; i < buflen; i++) {
-      Serial.print(buf[i], HEX);
-      Serial.print(" ");
-    }
+
+    int ax = atoi(buf);
+    Serial.print(ax);
+//    for (i = 0; i < buflen; i++) {
+//       
+//      Serial.print(buf[i], HEX);
+//      Serial.print(" ");
+//    }
     Serial.println("");
     digitalWrite(13, false);
   }
@@ -132,10 +135,11 @@ void get_imu_data() {
 
 void loop() {
   get_imu_data();
-
+//  delay(200);
 //  set_motors(-255, 0, 0, 0);
 //  delay(1500);
 
+//  motor_test();
 //  move_vec(0, 5, 255);  
 //  delay(1500);
 //  move_vec(5, 5, 255);

@@ -66,7 +66,7 @@ int16_t gx, gy, gz;
 // for a human.
 //#define OUTPUT_BINARY_ACCELGYRO
 
-#define TX_PIN 3
+#define TX_PIN 2
 #define LED_PIN 13
 bool blinkState = false;
 
@@ -81,7 +81,7 @@ void setup() {
     // initialize serial communication
     // (38400 chosen because it works as well at 8MHz as it does at 16MHz, but
     // it's really up to you depending on your project)
-    Serial.begin(9600);
+    Serial.begin(115200);
 
     // initialize device
     Serial.println("Initializing I2C devices...");
@@ -90,29 +90,6 @@ void setup() {
     // verify connection
     Serial.println("Testing device connections...");
     Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
-
-    // use the code below to change accel/gyro offset values
-    /*
-    Serial.println("Updating internal sensor offsets...");
-    // -76  -2359 1688  0 0 0
-    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
-    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
-    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
-    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
-    Serial.print("\n");
-    accelgyro.setXGyroOffset(220);
-    accelgyro.setYGyroOffset(76);
-    accelgyro.setZGyroOffset(-85);
-    Serial.print(accelgyro.getXAccelOffset()); Serial.print("\t"); // -76
-    Serial.print(accelgyro.getYAccelOffset()); Serial.print("\t"); // -2359
-    Serial.print(accelgyro.getZAccelOffset()); Serial.print("\t"); // 1688
-    Serial.print(accelgyro.getXGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getYGyroOffset()); Serial.print("\t"); // 0
-    Serial.print(accelgyro.getZGyroOffset()); Serial.print("\t"); // 0
-    Serial.print("\n");
-    */
 
     // configure Arduino LED pin for output
     pinMode(LED_PIN, OUTPUT);
@@ -133,35 +110,18 @@ void send_data() {
 }
 
 void loop() {
-  send_data();
-//    // read raw accel/gyro measurements from device
-//    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-//
-//    // these methods (and a few others) are also available
-//    //accelgyro.getAcceleration(&ax, &ay, &az);
-//    //accelgyro.getRotation(&gx, &gy, &gz);
-//
-//    #ifdef OUTPUT_READABLE_ACCELGYRO
-//        // display tab-separated accel/gyro x/y/z values
-//        Serial.print("a/g:\t");
-//        Serial.print(ax); Serial.print("\t");
-//        Serial.print(ay); Serial.print("\t");
-//        Serial.print(az); Serial.print("\t");
-//        Serial.print(gx); Serial.print("\t");
-//        Serial.print(gy); Serial.print("\t");
-//        Serial.println(gz);
-//    #endif
-//
-//    #ifdef OUTPUT_BINARY_ACCELGYRO
-//        Serial.write((uint8_t)(ax >> 8)); Serial.write((uint8_t)(ax & 0xFF));
-//        Serial.write((uint8_t)(ay >> 8)); Serial.write((uint8_t)(ay & 0xFF));
-//        Serial.write((uint8_t)(az >> 8)); Serial.write((uint8_t)(az & 0xFF));
-//        Serial.write((uint8_t)(gx >> 8)); Serial.write((uint8_t)(gx & 0xFF));
-//        Serial.write((uint8_t)(gy >> 8)); Serial.write((uint8_t)(gy & 0xFF));
-//        Serial.write((uint8_t)(gz >> 8)); Serial.write((uint8_t)(gz & 0xFF));
-//    #endif
-//
-//    // blink LED to indicate activity
-//    blinkState = !blinkState;
-//    digitalWrite(LED_PIN, blinkState);
+    // ax is forward/backwards, az might be for left/right
+    // read raw accel/gyro measurements from device
+    accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
+
+    // these methods (and a few others) are also available
+    //accelgyro.getAcceleration(&ax, &ay, &az);
+    //accelgyro.getRotation(&gx, &gy, &gz);
+
+//    send_data();
+    
+    char msg[16];
+    sprintf(msg, "%i", ax);
+    vw_send((uint8_t *)msg, strlen(msg));
+    vw_wait_tx(); // Wait until the whole message is gone
 }
