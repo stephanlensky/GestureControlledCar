@@ -1,7 +1,7 @@
 #include <VirtualWire.h>
 
 // front l9110s
-#define F_BIA 9 // pwm
+#define F_BIA 11 // pwm (9 - > 11)
 #define F_BIB 8
 #define F_AIA 6 // pwm
 #define F_AIB 7 
@@ -20,7 +20,7 @@
 #define BR_PWM B_BIA
 #define BR_DIR B_BIB
 
-#define RX_PIN 11
+#define RX_PIN 12 // (11 -> 12)
 
 void setup() {
   Serial.begin(115200); // open the serial port at 115200 bps:
@@ -109,53 +109,62 @@ void set_motors(int speed_fl, int speed_fr, int speed_bl, int speed_br) {
   analogWrite(BL_PWM, speed_bl >= 0 ? 255 - speed_bl : abs(speed_bl));
   digitalWrite(BR_DIR, speed_br <= 0 ? HIGH : LOW);
   analogWrite(BR_PWM, speed_br <= 0 ? 255 - abs(speed_br) : speed_br);
+  delay(5);
 }
 
+int pitch = 181;
+int roll = 181;
 void get_imu_data() {
-  uint8_t buf[VW_MAX_MESSAGE_LEN];
+  uint8_t buf[VW_MAX_MESSAGE_LEN + 1];
   uint8_t buflen = VW_MAX_MESSAGE_LEN;
 
+  Serial.println("before");
+  vw_wait_rx();
+  Serial.println("after");
   if (vw_get_message(buf, &buflen)) { // Non-blocking
     int i;
     digitalWrite(13, true); // Flash a light to show received good message
     // Message with a good checksum received, dump it.
-    Serial.print("Got: ");
-
-    int ax = atoi(buf);
-    Serial.print(ax);
+    
+    buf[buflen] = '\0';
+    sscanf(buf, "%d.%d", &pitch, &roll);
+//    Serial.print("Got: ");
+//    Serial.print(pitch); Serial.print("\t");
+//    Serial.println(roll);
+    
 //    for (i = 0; i < buflen; i++) {
-//       
-//      Serial.print(buf[i], HEX);
-//      Serial.print(" ");
+//      Serial.print((char) buf[i]);
 //    }
-    Serial.println("");
+//    Serial.println("");
     digitalWrite(13, false);
   }
 }
 
 void loop() {
   get_imu_data();
-//  delay(200);
-//  set_motors(-255, 0, 0, 0);
-//  delay(1500);
+  // waiting for IMU data or IMU data is invalid
+  if (pitch > 180 || pitch < -180 || roll > 180 || roll < -180) {
+    return;
+  }
 
-//  motor_test();
-//  move_vec(0, 5, 255);  
-//  delay(1500);
-//  move_vec(5, 5, 255);
-//  delay(1500);
-//  move_vec(5, 0, 255);
-//  delay(1500);
-//  move_vec(5, -5, 255);
-//  delay(1500);
-//  move_vec(0, -5, 255);
-//  delay(1500);
-//  move_vec(-5, -5, 255);
-//  delay(1500);
-//  move_vec(-5, 0, 255);
-//  delay(1500);
-//  move_vec(-5, 5, 255);
-//  delay(1500);
+  Serial.print(pitch); Serial.print("\t");
+  Serial.println(roll);
+
+  int y_dir = 0;
+  if (pitch > 30) {
+    y_dir = 1;
+  } else if (pitch < -30) {
+    y_dir = -1;
+  }
+
+  int x_dir = 0;
+  if (roll > 30) {
+    x_dir = 1;
+  } else if (roll < -30) {
+    x_dir = -1;
+  }
+
+  move_vec(x_dir, y_dir, 220);
 }
 
 void motor_test() {

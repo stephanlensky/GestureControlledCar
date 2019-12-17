@@ -37,6 +37,8 @@ THE SOFTWARE.
 #include "MPU6050.h"
 #include <VirtualWire.h>
 
+#define M_PI 3.141592653589793238462643
+
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
 // is used in I2Cdev.h
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -113,15 +115,29 @@ void loop() {
     // ax is forward/backwards, az might be for left/right
     // read raw accel/gyro measurements from device
     accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
-
+    
+    int pitch = 180 * atan2(az, ax) / M_PI;
+    if (pitch < 90) {
+      pitch += 90;
+    } else {
+      pitch -= 270;
+    }
+    int roll = 180 * atan2(ay, az) / M_PI;
+    if (roll < 0) {
+      roll = -180 - roll;
+    } else {
+      roll = 180 - roll;
+    }
+    
+//    Serial.print(pitch); // Serial.print("\t");
+//    Serial.println(roll);
+    
     // these methods (and a few others) are also available
     //accelgyro.getAcceleration(&ax, &ay, &az);
     //accelgyro.getRotation(&gx, &gy, &gz);
 
-//    send_data();
-    
     char msg[16];
-    sprintf(msg, "%i", ax);
+    sprintf(msg, "%i.%i", pitch, roll);
     vw_send((uint8_t *)msg, strlen(msg));
     vw_wait_tx(); // Wait until the whole message is gone
 }
