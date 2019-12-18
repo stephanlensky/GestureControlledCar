@@ -22,6 +22,13 @@
 
 #define RX_PIN 12 // (11 -> 12)
 
+#define NO_RX_PANIC_DELAY 2000
+#define MIN_SPEED 200
+#define MAX_SPEED 255
+#define DEADZONE 25
+#define MAX_PITCH 50
+#define MAX_ROLL 50
+
 void setup() {
   Serial.begin(115200); // open the serial port at 115200 bps:
   pinMode(FL_PWM, OUTPUT);
@@ -39,57 +46,10 @@ void setup() {
   vw_rx_start();
 }
 
-//void forward(int speed, int duration) {
-//  int dir = speed >= 0;
-//  int speed_l = abs(speed);
-//  int speed_r = speed_l;
-//  if (dir  == 1) {
-//    speed_r = 255 - speed_r;
-//  } else {
-//    speed_l = 255 - speed_l;
-//  }
-//
-//  Serial.println("dir: " + String(dir) + " - speed_r: " + String(speed_r) + " - speed_l: " + String(speed_l));
-//  digitalWrite(FR_IA, dir);
-//  analogWrite(FR_IB, speed_r);
-//  digitalWrite(FL_IA, !dir);
-//  analogWrite(FL_IB, speed_l);
-//  digitalWrite(BR_IA, dir);
-//  analogWrite(BR_IB, speed_r);
-//  digitalWrite(BL_IA, !dir);
-//  analogWrite(BL_IB, speed_l);
-//  delay(duration);
-//}
-//
-//void sideways(int speed, int duration) {
-//  int dir = speed >= 0;
-//  int speed_l = abs(speed);
-//  int speed_r = speed_l;
-//  if (dir  == 1) {
-//    speed_r = 255 - speed_r;
-//  } else {
-//    speed_l = 255 - speed_l;
-//  }
-//
-//  Serial.println("dir: " + String(dir) + " - speed_r: " + String(speed_r) + " - speed_l: " + String(speed_l));
-//  digitalWrite(FR_IA, !dir);
-//  analogWrite(FR_IB, speed_l);
-//  digitalWrite(FL_IA, !dir);
-//  analogWrite(FL_IB, speed_l);
-//  digitalWrite(BR_IA, dir);
-//  analogWrite(BR_IB, speed_r);
-//  digitalWrite(BL_IA, dir);
-//  analogWrite(BL_IB, speed_r);
-//  delay(duration);
-//}
-
 void move_vec(double x, double y, int speed) {
   double x_sq = x > 0 ? sq(x) : -sq(x);
   double y_sq = y > 0 ? sq(y) : -sq(y);
   double m = sqrt(abs(x_sq) + abs(y_sq));
-//  Serial.println("x: " + String(x) + " - y: " + String(y));
-//  int speed_1 = sqrt(y_sq + x_sq) / m * speed;
-//  int speed_2 = sqrt(y_sq - x_sq) / m * speed;
   int speed_1 = y_sq + x_sq;
   int speed_2 = y_sq - x_sq;
   speed_1 = speed_1 > 0 ? sqrt(speed_1) / m * speed : -sqrt(abs(speed_1)) / m * speed;
@@ -112,76 +72,85 @@ void set_motors(int speed_fl, int speed_fr, int speed_bl, int speed_br) {
   delay(5);
 }
 
-int pitch = 181;
-int roll = 181;
-void get_imu_data() {
+int pitch, roll;
+unsigned long last_data = 0;
+void get_imu_data(boolean wait_rx) {
   uint8_t buf[VW_MAX_MESSAGE_LEN + 1];
   uint8_t buflen = VW_MAX_MESSAGE_LEN;
 
-  Serial.println("before");
-  vw_wait_rx();
-  Serial.println("after");
+  if (wait_rx) {
+    Serial.println("Waiting for message...");
+    vw_wait_rx();
+  }
+  
   if (vw_get_message(buf, &buflen)) { // Non-blocking
-    int i;
     digitalWrite(13, true); // Flash a light to show received good message
-    // Message with a good checksum received, dump it.
-    
     buf[buflen] = '\0';
-    sscanf(buf, "%d.%d", &pitch, &roll);
-//    Serial.print("Got: ");
-//    Serial.print(pitch); Serial.print("\t");
-//    Serial.println(roll);
+    int pitch_local, roll_local;
+    sscanf(buf, "%d.%d", &pitch_local, &roll_local);
     
-//    for (i = 0; i < buflen; i++) {
-//      Serial.print((char) buf[i]);
-//    }
-//    Serial.println("");
+    // is data valid?
+    if (pitch_local > 180 || pitch_local < -180 || roll_local > 180 || roll_local < -180) {
+      Serial.print("IMU data is invalid! Received: "); Serial.println((char*) buf);
+    } else {
+      pitch = pitch_local;
+      roll = roll_local;
+      last_data = millis();
+    }
+    
     digitalWrite(13, false);
   }
 }
 
+boolean wait = true;
 void loop() {
-  get_imu_data();
-  // waiting for IMU data or IMU data is invalid
-  if (pitch > 180 || pitch < -180 || roll > 180 || roll < -180) {
+  get_imu_data(wait);
+  wait = false;
+
+  if (millis() > last_data + NO_RX_PANIC_DELAY) {
+    Serial.println("Haven't received data in a while, stopping!");
+    set_motors(0, 0, 0, 0);
+    wait = true;
     return;
   }
 
   Serial.print(pitch); Serial.print("\t");
   Serial.println(roll);
 
-  int y_dir = 0;
-  if (pitch > 30) {
-    y_dir = 1;
-  } else if (pitch < -30) {
+  int y_dir = pitch > DEADZONE;
+  if (pitch < -DEADZONE) {
     y_dir = -1;
   }
 
-  int x_dir = 0;
-  if (roll > 30) {
-    x_dir = 1;
-  } else if (roll < -30) {
+  int x_dir = roll > DEADZONE;
+  if (roll < -DEADZONE) {
     x_dir = -1;
   }
 
-  move_vec(x_dir, y_dir, 220);
+  int speed;
+  if (abs(pitch) > abs(roll)) {
+    speed = (MAX_SPEED - MIN_SPEED) / (MAX_PITCH - DEADZONE) * (abs(pitch) - DEADZONE);
+  } else {
+    speed = (MAX_SPEED - MIN_SPEED) / (MAX_ROLL - DEADZONE) * (abs(roll) - DEADZONE);
+  }
+  move_vec(x_dir, y_dir, min(MIN_SPEED + speed, MAX_SPEED));
 }
 
 void motor_test() {
-  set_motors(255, 0, 0, 0);
+  set_motors(MAX_SPEED, 0, 0, 0);
   delay(1500);
-  set_motors(0, 255, 0, 0);
+  set_motors(0, MAX_SPEED, 0, 0);
   delay(1500);
-  set_motors(0, 0, 255, 0);
+  set_motors(0, 0, MAX_SPEED, 0);
   delay(1500);
-  set_motors(0, 0, 0, 255);
+  set_motors(0, 0, 0, MAX_SPEED);
   delay(1500);
-  set_motors(-255, 0, 0, 0);
+  set_motors(-MAX_SPEED, 0, 0, 0);
   delay(1500);
-  set_motors(0, -255, 0, 0);
+  set_motors(0, -MAX_SPEED, 0, 0);
   delay(1500);
-  set_motors(0, 0, -255, 0);
+  set_motors(0, 0, -MAX_SPEED, 0);
   delay(1500);
-  set_motors(0, 0, 0, -255);
+  set_motors(0, 0, 0, -MAX_SPEED);
   delay(1500);
 }

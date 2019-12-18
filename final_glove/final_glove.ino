@@ -90,6 +90,7 @@ void setup() {
     accelgyro.initialize();
 
     // verify connection
+    // note: this fails on our chip because the device ID is not correct. Do we have a fake chip?
     Serial.println("Testing device connections...");
     Serial.println(accelgyro.testConnection() ? "MPU6050 connection successful" : "MPU6050 connection failed");
 
@@ -101,18 +102,7 @@ void setup() {
     vw_setup(2000); // bps
 }
 
-void send_data() {
-  const char *msg = "hello";
-
-  digitalWrite(13, true); // Flash a light to show transmitting
-  vw_send((uint8_t *)msg, strlen(msg));
-  vw_wait_tx(); // Wait until the whole message is gone
-  digitalWrite(13, false);
-  delay(200);
-}
-
 void loop() {
-    // ax is forward/backwards, az might be for left/right
     // read raw accel/gyro measurements from device
     accelgyro.getMotion6(&ax, &ay, &az, &gx, &gy, &gz);
     
@@ -129,15 +119,9 @@ void loop() {
       roll = 180 - roll;
     }
     
-//    Serial.print(pitch); // Serial.print("\t");
-//    Serial.println(roll);
-    
-    // these methods (and a few others) are also available
-    //accelgyro.getAcceleration(&ax, &ay, &az);
-    //accelgyro.getRotation(&gx, &gy, &gz);
-
     char msg[16];
     sprintf(msg, "%i.%i", pitch, roll);
+    Serial.println(msg);
     vw_send((uint8_t *)msg, strlen(msg));
     vw_wait_tx(); // Wait until the whole message is gone
 }
